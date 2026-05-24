@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title><%= room.name %> - Party Room</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <main class="card room-card">
+        <section class="hero">
+          <span class="eyebrow">Room Ready</span>
+          <h1><%= room.name %></h1>
+          <p>Room ID: <strong><%= room.id %></strong></p>
+        </section>
+
+        <section class="info-block">
+          <p>Share this link with your friends:</p>
+          <pre class="room-link"><%= room.url %></pre>
+        </section>
+
+        <section id="lobbyPanel" class="game-panel">
+          <div class="panel-title">
+            <h2>Party Lobby</h2>
+            <p>Pick your class, then wait for the host to start the adventure.</p>
+          </div>
+
+          <div id="classOptions" class="class-grid"></div>
+
+          <div class="panel-body">
+            <h3>Party roster</h3>
+            <ul id="playerList" class="user-list"></ul>
+            <button id="startGameButton" class="primary-button hidden">Start adventure</button>
+            <div id="lobbyNotice" class="panel-note"></div>
+          </div>
+        </section>
+
+        <section id="votePanel" class="game-panel hidden">
+          <div class="panel-title">
+            <h2>Choose your path</h2>
+            <p>Vote for the next route. Host breaks ties.</p>
+          </div>
+
+          <div id="routeOptions" class="route-grid"></div>
+          <div id="voteStatus" class="panel-note"></div>
+        </section>
+
+        <section id="combatPanel" class="game-panel hidden">
+          <div class="panel-title">
+            <h2>Adventure in progress</h2>
+            <p>Use your actions to defeat the enemy.</p>
+          </div>
+
+          <div id="enemyCard" class="enemy-card"></div>
+
+          <div id="combatStatus" class="panel-body"></div>
+
+          <div class="action-grid" id="actionGrid"></div>
+          <div id="actionStatus" class="panel-note"></div>
+
+          <div class="panel-body">
+            <h3>Inventory</h3>
+            <ul id="inventoryList" class="inventory-list"></ul>
+          </div>
+
+          <div class="panel-body">
+            <h3>Battle log</h3>
+            <ul id="battleLog" class="battle-log"></ul>
+          </div>
+        </section>
+
+        <a class="secondary-button" href="/">Back to home</a>
+      </main>
+    </div>
+
+    <div class="name-prompt hidden" id="namePrompt">
+      <div class="name-prompt-card">
+        <h2>Enter your name</h2>
+        <p>To join this room, please tell us your name.</p>
+        <form id="namePromptForm">
+          <label for="promptName">Name</label>
+          <input id="promptName" name="promptName" type="text" placeholder="Enter your name" autocomplete="name" />
+          <button type="submit" class="primary-button">Join room</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      window.ROOM_ID = '<%= room.id %>';
+    </script>
+    <script src="/script.js"></script>
+  </body>
+</html>

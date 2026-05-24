@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Corey House of Fun!</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <main class="card">
+        <section class="hero">
+          <span class="eyebrow">Party Room</span>
+          <h1>Corey House of Fun!</h1>
+          <p>Create a private room instantly, or join with a code.</p>
+        </section>
+
+        <form action="/create-room" method="post" class="action-block" id="roomActionForm">
+          <label for="userName">Your name</label>
+          <input id="userName" name="name" type="text" placeholder="Enter your name" required />
+          <label for="roomCode">Room code</label>
+          <input id="roomCode" name="roomId" type="text" placeholder="Enter room code to join" />
+          <div class="button-row">
+            <button type="submit" class="primary-button" formaction="/create-room" formnovalidate>Create room</button>
+            <button type="submit" class="secondary-button" formaction="/join-room">Join room</button>
+          </div>
+        </form>
+        <script>
+          const roomActionForm = document.getElementById('roomActionForm');
+          const roomNameInput = document.getElementById('userName');
+
+          if (roomNameInput) {
+            roomNameInput.addEventListener('input', () => {
+              const nameValue = roomNameInput.value.trim();
+              if (nameValue) {
+                window.localStorage.setItem('partyRoomUser', nameValue);
+              }
+            });
+          }
+
+          if (roomActionForm) {
+            roomActionForm.addEventListener('submit', event => {
+              const nameValue = roomNameInput?.value.trim();
+              if (nameValue) {
+                window.localStorage.setItem('partyRoomUser', nameValue);
+              }
+            });
+          }
+        </script>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "thuranius": {
+    "name": "Thuranius",
+    "className": "Paladin",
+    "level": 1,
+    "xp": 0,
+    "currency": 100,
+    "inventory": [],
+    "equipment": {
+      "weapon": null,
+      "armor": null
+    },
+    "stats": {
+      "label": "Paladin",
+      "hp": 118,
+      "str": 12,
+      "int": 7,
+      "dex": 7,
+      "def": 13,
+      "spd": 6
+    },
+    "maxHp": 118,
+    "currentHp": 0,
+    "createdAt": "2026-05-24T21:35:43.460Z",
+    "updatedAt": "2026-05-24T22:36:15.327Z"
+  }
+}

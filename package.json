@@ -1,0 +1,20 @@
+{
+  "name": "homeserverapp",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "start-background": "forever start app.js",
+    "stop-background": "forever stop app.js"
+  },
+  "dependencies": {
+    "ejs": "^5.0.2",
+    "express": "^5.2.1",
+    "socket.io": "^4.7.2"
+  }
+}
