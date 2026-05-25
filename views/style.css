@@ -210,7 +210,124 @@ button:focus-visible {
     gap: 18px;
   }
 
-  .panel-title {
+  .combat-top-row,
+  .combat-main-row {
+    display: grid;
+    gap: 16px;
+  }
+
+  .combat-top-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .combat-main-row {
+    grid-template-columns: minmax(260px, 1fr) 280px;
+  }
+
+  .combat-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 18px;
+  }
+
+  .combat-details-panel {
+    display: grid;
+    gap: 14px;
+  }
+
+  .player-status-panel,
+  .combat-actions-panel {
+    display: grid;
+    gap: 14px;
+  }
+
+  .player-info-panel {
+    display: grid;
+    gap: 12px;
+  }
+
+  .status-line,
+  .cooldown-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .player-info-panel h3,
+  .player-info-panel h4 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .cooldowns-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .status-card {
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .combat-info-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .player-summary {
+    display: grid;
+    gap: 12px;
+  }
+
+  .player-line {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .player-line.downed {
+    opacity: 0.7;
+  }
+
+  .enemy-stats {
+    color: var(--muted);
+    font-size: 0.95rem;
+    display: grid;
+    gap: 8px;
+  }
+
+  .enemy-stats span {
+    display: inline-flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .action-button {
+    min-height: 120px;
+    overflow: hidden;
+  }
+
+  .action-button span {
+    font-weight: 700;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .action-button small {
+    display: block;
+    color: var(--muted);
+  }
+
+  .action-button .cooldown-footer {
     display: grid;
     gap: 8px;
   }

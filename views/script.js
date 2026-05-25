@@ -29,17 +29,33 @@ if (userName && namePrompt) {
 
 const lobbyPanel = document.getElementById('lobbyPanel');
 const votePanel = document.getElementById('votePanel');
+const restPanel = document.getElementById('restPanel');
+const resultPanel = document.getElementById('resultPanel');
+const shopPanel = document.getElementById('shopPanel');
 const combatPanel = document.getElementById('combatPanel');
 const classOptions = document.getElementById('classOptions');
 const startGameButton = document.getElementById('startGameButton');
+const openShopButton = document.getElementById('openShopButton');
+const closeShopButton = document.getElementById('closeShopButton');
 const lobbyNotice = document.getElementById('lobbyNotice');
 const routeOptions = document.getElementById('routeOptions');
+const restRouteOptions = document.getElementById('restRouteOptions');
+const shopOffersContainer = document.getElementById('shopOffers');
+const shopStatus = document.getElementById('shopStatus');
 const voteStatus = document.getElementById('voteStatus');
+const restStatus = document.getElementById('restStatus');
+const continueButton = document.getElementById('continueButton');
 const enemyCard = document.getElementById('enemyCard');
-const combatStatus = document.getElementById('combatStatus');
+const combatDetails = document.getElementById('combatDetails');
+const playerStatusPanel = document.getElementById('playerStatusPanel');
 const actionGrid = document.getElementById('actionGrid');
 const inventoryList = document.getElementById('inventoryList');
+const restInventoryList = document.getElementById('restInventoryList');
 const battleLog = document.getElementById('battleLog');
+const restBattleLog = document.getElementById('restBattleLog');
+const resultTitle = document.getElementById('resultTitle');
+const resultSummary = document.getElementById('resultSummary');
+const resultLog = document.getElementById('resultLog');
 let latestRoomState;
 let combatRefreshInterval;
 
@@ -138,7 +154,7 @@ function getActionsForClass(className) {
 }
 
 function showPanel(panel) {
-  [lobbyPanel, votePanel, combatPanel].forEach(section => {
+  [lobbyPanel, votePanel, restPanel, resultPanel, combatPanel].forEach(section => {
     if (!section) return;
     section.classList.toggle('hidden', section !== panel);
   });
@@ -184,9 +200,9 @@ function renderClassOptions(users) {
   });
 }
 
-function renderRouteOptions(state) {
-  if (!routeOptions) return;
-  routeOptions.innerHTML = '';
+function renderRouteOptions(state, container, statusNode) {
+  if (!container) return;
+  container.innerHTML = '';
   const votes = state.votes || {};
 
   (state.routeOptions || []).forEach(route => {
@@ -197,10 +213,29 @@ function renderRouteOptions(state) {
     button.addEventListener('click', () => {
       socket.emit('vote-route', { roomId, routeId: route.id });
     });
-    routeOptions.appendChild(button);
+    container.appendChild(button);
   });
 
-  voteStatus.textContent = `Votes received: ${Object.keys(votes).length} / ${state.users.length}`;
+  if (statusNode) {
+    statusNode.textContent = `Votes received: ${Object.keys(votes).length} / ${state.users.length}`;
+  }
+}
+
+function renderShopOffers(state) {
+  if (!shopOffersContainer) return;
+  shopOffersContainer.innerHTML = '';
+  const offers = state.shopOffers || [];
+
+  offers.forEach(offer => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'route-card secondary-button';
+    button.innerHTML = `<strong>${offer.label}</strong><span>${offer.description}</span><span class="route-count">Cost: ${offer.cost}</span>`;
+    button.addEventListener('click', () => {
+      socket.emit('buy-shop-item', { roomId, offerId: offer.id });
+    });
+    shopOffersContainer.appendChild(button);
+  });
 }
 
 function renderEnemy(enemy) {
@@ -216,26 +251,101 @@ function renderEnemy(enemy) {
       <span>HP: ${enemy.currentHp} / ${enemy.maxHp}</span>
     </div>
     <div class="enemy-bar"><div class="enemy-health" style="width: ${Math.max(0, (enemy.currentHp / enemy.maxHp) * 100)}%"></div></div>
-    <div class="enemy-stats">Attack: ${enemy.attack} · Speed: ${enemy.speed}</div>
+    <div class="enemy-stats">
+      <span>Attack: ${enemy.attack}</span>
+      <span>Defense: ${enemy.def || 'N/A'}</span>
+      <span>Speed: ${enemy.speed}</span>
+      <span>Path: ${enemy.pathTag || 'Normal'}</span>
+    </div>
   `;
 }
 
 function renderCombatStatus(state) {
-  if (!combatStatus) return;
-  combatStatus.innerHTML = '';
-  const header = document.createElement('div');
-  header.innerHTML = `<strong>Stage:</strong> ${state.currentStage || 0} · <strong>Route:</strong> ${state.currentRoute || 'TBD'}`;
-  combatStatus.appendChild(header);
+  if (!combatDetails) return;
+  combatDetails.innerHTML = '';
 
-  const stats = document.createElement('div');
-  stats.className = 'combat-users';
-  state.users.forEach(user => {
-    const item = document.createElement('div');
-    item.className = 'combat-user';
-    item.innerHTML = `<strong>${user.name}</strong> · ${user.className} · HP ${user.currentHp}/${user.maxHp} ${user.role === 'Host' ? '<span class="user-role">Host</span>' : ''}`;
-    stats.appendChild(item);
-  });
-  combatStatus.appendChild(stats);
+  const infoGrid = document.createElement('div');
+  infoGrid.className = 'combat-info-grid';
+
+  const stageCard = document.createElement('div');
+  stageCard.className = 'status-card';
+  stageCard.innerHTML = `
+    <strong>Stage</strong>
+    <span>${state.currentStage || 0}</span>
+  `;
+  infoGrid.appendChild(stageCard);
+
+  const routeCard = document.createElement('div');
+  routeCard.className = 'status-card';
+  routeCard.innerHTML = `
+    <strong>Route</strong>
+    <span>${state.currentRoute || 'TBD'}</span>
+  `;
+  infoGrid.appendChild(routeCard);
+
+  const pathCard = document.createElement('div');
+  pathCard.className = 'status-card';
+  pathCard.innerHTML = `
+    <strong>Path</strong>
+    <span>${state.currentPath || 'Normal'}</span>
+  `;
+  infoGrid.appendChild(pathCard);
+
+  const aliveCount = state.users.filter(user => user.alive).length;
+  const partyCard = document.createElement('div');
+  partyCard.className = 'status-card';
+  partyCard.innerHTML = `
+    <strong>Active Players</strong>
+    <span>${aliveCount} / ${state.users.length}</span>
+  `;
+  infoGrid.appendChild(partyCard);
+
+  combatDetails.appendChild(infoGrid);
+
+  const playerSummary = document.createElement('div');
+  playerSummary.className = 'player-summary';
+  playerSummary.innerHTML = `
+    <h3>Party Status</h3>
+    ${state.users.map(user => `
+      <div class="player-line ${user.alive ? '' : 'downed'}">
+        <strong>${user.name}</strong> <small>${user.className}</small>
+        <div>HP: ${user.currentHp}/${user.maxHp}</div>
+        <div>Currency: ${user.currency}</div>
+      </div>
+    `).join('')}
+  `;
+  combatDetails.appendChild(playerSummary);
+}
+
+function renderPlayerStatus(state) {
+  if (!playerStatusPanel) return;
+  playerStatusPanel.innerHTML = '';
+  const me = state.users.find(user => user.name === userName);
+  if (!me) {
+    playerStatusPanel.innerHTML = '<p>Player status unavailable.</p>';
+    return;
+  }
+
+  const playerInfo = document.createElement('div');
+  playerInfo.className = 'player-info-panel';
+  playerInfo.innerHTML = `
+    <h3>Your Status</h3>
+    <div class="status-line"><strong>Class</strong><span>${me.className}</span></div>
+    <div class="status-line"><strong>HP</strong><span>${me.currentHp}/${me.maxHp}</span></div>
+    <div class="status-line"><strong>Currency</strong><span>${me.currency}</span></div>
+    <div class="status-line"><strong>Ability Slots</strong><span>${me.abilitySlots || 0}</span></div>
+    <div class="status-line"><strong>Perks</strong><span>${(me.unlockedPerks || []).join(', ') || 'None'}</span></div>
+    <h4>Cooldowns</h4>
+    <div class="cooldowns-list">
+      ${(Object.entries(me.cooldowns || {}) || []).map(([ability, readyAt]) => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((readyAt - now) / 1000));
+        return `<div class="cooldown-item"><strong>${ability}</strong>: ${remaining > 0 ? `${remaining}s` : 'Ready'}</div>`;
+      }).join('')}
+    </div>
+  `;
+
+  playerStatusPanel.appendChild(playerInfo);
 }
 
 function sendPlayerAction(actionId) {
@@ -316,12 +426,23 @@ function stopCombatRefresh() {
   }
 }
 
-function renderInventory(users) {
-  if (!inventoryList) return;
-  inventoryList.innerHTML = '';
-  const me = users.find(user => user.name === userName);
+const itemCatalog = {
+  health_potion: { label: 'Health Potion', description: 'Restore 40 HP in combat.', consumable: true },
+  ether_vial: { label: 'Ether Vial', description: 'Restore one ability cooldown by 50%.', consumable: true },
+  smoke_grenade: { label: 'Smoke Grenade', description: 'Reduce enemy attack for the current fight.', consumable: true },
+};
+
+function sendUseItem(itemId) {
+  socket.emit('use-item', { roomId, itemId });
+}
+
+function renderInventory(state, container) {
+  const target = container || inventoryList;
+  if (!target || !state) return;
+  target.innerHTML = '';
+  const me = state.users.find(user => user.name === userName);
   if (!me) {
-    inventoryList.innerHTML = '<li>No inventory available.</li>';
+    target.innerHTML = '<li>No inventory available.</li>';
     return;
   }
 
@@ -329,24 +450,34 @@ function renderInventory(users) {
   if (items.length === 0) {
     const item = document.createElement('li');
     item.textContent = 'No items collected yet.';
-    inventoryList.appendChild(item);
+    target.appendChild(item);
     return;
   }
 
-  items.forEach(itemName => {
+  items.forEach(itemId => {
+    const itemData = itemCatalog[itemId] || { label: itemId, consumable: false, description: '' };
     const item = document.createElement('li');
-    item.textContent = itemName;
-    inventoryList.appendChild(item);
+    item.innerHTML = `<span class="item-label">${itemData.label}</span>${itemData.description ? `<small class="item-desc">${itemData.description}</small>` : ''}`;
+    if (state.gameState === 'combat' && itemData.consumable) {
+      const useButton = document.createElement('button');
+      useButton.textContent = 'Use';
+      useButton.type = 'button';
+      useButton.className = 'small-button';
+      useButton.addEventListener('click', () => sendUseItem(itemId));
+      item.appendChild(useButton);
+    }
+    target.appendChild(item);
   });
 }
 
-function renderLog(entries) {
-  if (!battleLog) return;
-  battleLog.innerHTML = '';
+function renderLog(entries, container) {
+  const target = container || battleLog;
+  if (!target) return;
+  target.innerHTML = '';
   (entries || []).slice(-6).forEach(entry => {
     const item = document.createElement('li');
     item.textContent = entry;
-    battleLog.appendChild(item);
+    target.appendChild(item);
   });
 }
 
@@ -358,6 +489,9 @@ function updateLobby(state) {
   if (!startGameButton) return;
   const isHost = state.hostName === userName;
   startGameButton.classList.toggle('hidden', !isHost);
+  if (openShopButton) {
+    openShopButton.classList.remove('hidden');
+  }
   if (isHost) {
     startGameButton.disabled = state.users.some(user => !user.selectedClass);
     lobbyNotice.textContent = state.users.some(user => !user.selectedClass)
@@ -370,19 +504,54 @@ function updateLobby(state) {
 
 function updateVote(state) {
   renderPlayers(state.users, true);
-  renderRouteOptions(state);
-  voteStatus.textContent = `Votes: ${Object.keys(state.votes).length} / ${state.users.length}`;
+  renderRouteOptions(state, routeOptions, voteStatus);
   showPanel(votePanel);
+}
+
+function updateRest(state) {
+  renderPlayers(state.users, true);
+  renderCombatStatus(state);
+  renderInventory(state, restInventoryList);
+  renderLog(state.battleLog, restBattleLog);
+
+  const hasChoices = state.routeOptions && state.routeOptions.length > 0;
+  renderRouteOptions(state, restRouteOptions, hasChoices ? restStatus : null);
+  restStatus.textContent = hasChoices
+    ? 'Choose a path to continue your run.'
+    : 'The party is resting before the next stage.';
+
+  continueButton.classList.toggle('hidden', hasChoices);
+  showPanel(restPanel);
 }
 
 function updateCombat(state) {
   renderPlayers(state.users, true);
+  renderPlayerStatus(state);
   renderEnemy(state.currentEnemy);
   renderCombatStatus(state);
+  renderInventory(state, inventoryList);
   renderActions(state);
-  renderInventory(state.users);
-  renderLog(state.battleLog);
+  renderLog(state.battleLog, battleLog);
   showPanel(combatPanel);
+}
+
+function updateResults(state) {
+  if (!resultTitle || !resultSummary || !resultLog) return;
+  resultTitle.textContent = state.gameState === 'victory' ? 'Run Complete' : 'Run Failed';
+  resultSummary.textContent = state.gameState === 'victory'
+    ? 'Congratulations! The party completed the run.'
+    : 'The party was defeated. Some earned currency has been retained.';
+  renderLog(state.battleLog, resultLog);
+  showPanel(resultPanel);
+}
+
+function updateShop(state) {
+  renderPlayers(state.users, true);
+  renderShopOffers(state);
+  if (shopStatus) {
+    shopStatus.textContent = 'Choose an item or perk to buy from the shop.';
+  }
+  showPanel(shopPanel);
 }
 
 function renderRoomState(state) {
@@ -398,9 +567,18 @@ function renderRoomState(state) {
   } else if (state.gameState === 'voting') {
     stopCombatRefresh();
     updateVote(state);
+  } else if (state.gameState === 'rest') {
+    stopCombatRefresh();
+    updateRest(state);
+  } else if (state.gameState === 'shop') {
+    stopCombatRefresh();
+    updateShop(state);
   } else if (state.gameState === 'combat') {
     updateCombat(state);
     startCombatRefresh();
+  } else if (state.gameState === 'victory' || state.gameState === 'run_failed') {
+    stopCombatRefresh();
+    updateResults(state);
   } else {
     stopCombatRefresh();
     updateLobby(state);
@@ -458,6 +636,20 @@ function connectSocket(name) {
     }
   });
 
+  socket.on('shop-error', ({ message }) => {
+    console.warn('Shop error:', message);
+    if (shopStatus) {
+      shopStatus.textContent = message;
+    }
+  });
+
+  socket.on('shop-success', ({ message }) => {
+    console.log('Shop success:', message);
+    if (shopStatus) {
+      shopStatus.textContent = message;
+    }
+  });
+
   socket.emit('enter-room', { roomId, userName: name });
 }
 
@@ -488,6 +680,30 @@ if (namePromptForm) {
     const name = promptNameInput.value.trim();
     if (name) {
       joinRoomWithName(name);
+    }
+  });
+}
+
+if (continueButton) {
+  continueButton.addEventListener('click', () => {
+    if (window.socket) {
+      window.socket.emit('continue-run', { roomId });
+    }
+  });
+}
+
+if (openShopButton) {
+  openShopButton.addEventListener('click', () => {
+    if (window.socket) {
+      window.socket.emit('open-shop', { roomId });
+    }
+  });
+}
+
+if (closeShopButton) {
+  closeShopButton.addEventListener('click', () => {
+    if (window.socket) {
+      window.socket.emit('close-shop', { roomId });
     }
   });
 }

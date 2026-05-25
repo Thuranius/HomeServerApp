@@ -32,6 +32,7 @@
             <h3>Party roster</h3>
             <ul id="playerList" class="user-list"></ul>
             <button id="startGameButton" class="primary-button hidden">Start adventure</button>
+            <button id="openShopButton" class="secondary-button">Open shop</button>
             <div id="lobbyNotice" class="panel-note"></div>
           </div>
         </section>
@@ -46,18 +47,69 @@
           <div id="voteStatus" class="panel-note"></div>
         </section>
 
+        <section id="restPanel" class="game-panel hidden">
+          <div class="panel-title">
+            <h2>Rest & prepare</h2>
+            <p>Take a short break between stages. Choose a branch when available.</p>
+          </div>
+
+          <div id="restStatus" class="panel-note"></div>
+          <div id="restRouteOptions" class="route-grid"></div>
+          <button id="continueButton" class="primary-button hidden">Continue adventure</button>
+
+          <div class="panel-body">
+            <h3>Inventory</h3>
+            <ul id="restInventoryList" class="inventory-list"></ul>
+          </div>
+
+          <div class="panel-body">
+            <h3>Battle log</h3>
+            <ul id="restBattleLog" class="battle-log"></ul>
+          </div>
+        </section>
+
+        <section id="resultPanel" class="game-panel hidden">
+          <div class="panel-title">
+            <h2 id="resultTitle">Run complete</h2>
+            <p id="resultSummary">The adventure has concluded.</p>
+          </div>
+          <div class="panel-body">
+            <h3>Battle log</h3>
+            <ul id="resultLog" class="battle-log"></ul>
+          </div>
+        </section>
+
+        <section id="shopPanel" class="game-panel hidden">
+          <div class="panel-title">
+            <h2>Adventurer's Shop</h2>
+            <p>Spend currency on consumables, equipment, and permanent perks.</p>
+          </div>
+          <div id="shopStatus" class="panel-note"></div>
+          <div id="shopOffers" class="route-grid"></div>
+          <button id="closeShopButton" class="secondary-button">Leave shop</button>
+        </section>
+
         <section id="combatPanel" class="game-panel hidden">
           <div class="panel-title">
             <h2>Adventure in progress</h2>
             <p>Use your actions to defeat the enemy.</p>
           </div>
 
-          <div id="enemyCard" class="enemy-card"></div>
+          <div class="combat-top-row">
+            <div id="enemyCard" class="enemy-card combat-card"></div>
+            <div id="playerStatusPanel" class="combat-card player-status-panel"></div>
+          </div>
 
-          <div id="combatStatus" class="panel-body"></div>
-
-          <div class="action-grid" id="actionGrid"></div>
-          <div id="actionStatus" class="panel-note"></div>
+          <div class="combat-main-row">
+            <div id="combatDetails" class="combat-card combat-details-panel"></div>
+            <div class="combat-actions-panel">
+              <div class="panel-title">
+                <h3>Abilities</h3>
+              </div>
+              <div class="action-grid" id="actionGrid"></div>
+              <div id="actionStatus" class="panel-note"></div>
+            </div>
+          </div>
 
           <div class="panel-body">
             <h3>Inventory</h3>

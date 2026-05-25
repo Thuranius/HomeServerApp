@@ -17,158 +17,79 @@ const rooms = new Map();
 
 const {
   classDefinitions,
-  classAbilities,
-  getAbilitiesForClass,
   isActionValidForClass,
 } = require('./data/classes');
 
-const { routeOptions, stageTemplates } = require('./data/gameData');
-const { getSavedProfile, initializeProfile } = require('./server/profileStore');
-
-function loadSavedPlayers() {
-  try {
-    if (fs.existsSync(SAVE_FILE)) {
-      const raw = fs.readFileSync(SAVE_FILE, 'utf8');
-      return raw ? JSON.parse(raw) : {};
-    }
-  } catch (error) {
-    console.error('Error loading saved players:', error);
-  }
-  return {};
-}
-
-function savePlayersToDisk() {
-  try {
-    fs.writeFileSync(SAVE_FILE, JSON.stringify(savedPlayers, null, 2));
-  } catch (error) {
-    console.error('Error saving players:', error);
-  }
-}
-
-// function getSavedProfile(name) {
-//   const key = name.toLowerCase();
-//   if (!savedPlayers[key]) {
-//     savedPlayers[key] = {
-//       name,
-//       className: 'Warrior',
-//       level: 1,
-//       xp: 0,
-//       currency: 100,
-//       inventory: [],
-//       equipment: { weapon: null, armor: null },
-//       stats: { ...classDefinitions.Warrior },
-//       maxHp: classDefinitions.Warrior.hp,
-//       currentHp: classDefinitions.Warrior.hp,
-//       createdAt: new Date().toISOString(),
-//       updatedAt: new Date().toISOString(),
-//     };
-//   }
-//   return savedPlayers[key];
-// }
-
-// function initializeProfile(name, className) {
-//   const profile = getSavedProfile(name);
-//   profile.className = className;
-//   const base = classDefinitions[className] || classDefinitions.Warrior;
-//   profile.stats = { ...base };
-//   profile.maxHp = base.hp;
-//   profile.currentHp = Math.min(profile.currentHp || base.hp, profile.maxHp);
-//   profile.updatedAt = new Date().toISOString();
-//   savePlayersToDisk();
-//   return profile;
-// }
+const {
+  createRoomState,
+  broadcastRoomState,
+  getRouteResult,
+  startStage,
+  startRestPhase,
+  getNextRouteOptions,
+  isRouteOptionValid,
+  getEnemyReward,
+} = require('./server/gameLogic');
+const { routeOptions } = require('./data/gameData');
+const { getSavedProfile, initializeProfile, savePlayersToDisk } = require('./server/profileStore');
+const { itemDefinitions } = require('./data/items');
+const { shopOffers, getShopOffer } = require('./data/shop');
 
 function createRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-function createRoomState(room) {
-  return {
-    id: room.id,
-    hostName: room.hostName,
-    gameState: room.gameState,
-    currentStage: room.currentStage,
-    currentRoute: room.currentRoute,
-    routeOptions: room.routeOptions,
-    votes: room.votes,
-    currentEnemy: room.currentEnemy,
-    battleLog: room.battleLog.slice(-8),
-    users: room.users.map(user => ({
-      name: user.name,
-      role: user.role,
-      selectedClass: user.selectedClass,
-      alive: user.alive,
-      currentHp: user.profile.currentHp,
-      maxHp: user.profile.maxHp,
-      className: user.profile.className,
-      level: user.profile.level,
-      currency: user.profile.currency,
-      inventory: user.profile.inventory,
-      equipment: user.profile.equipment,
-      cooldowns: user.cooldowns,
-    })),
-  };
+function addItemToInventory(profile, itemId, quantity = 1) {
+  if (!profile.inventory) {
+    profile.inventory = [];
+  }
+  const available = Math.max(0, 24 - profile.inventory.length);
+  if (available === 0) {
+    return false;
+  }
+  for (let i = 0; i < quantity && profile.inventory.length < 24; i += 1) {
+    profile.inventory.push(itemId);
+  }
+  return true;
 }
 
-function broadcastRoomState(room) {
-  io.to(room.id).emit('room-state', createRoomState(room));
+function removeItemFromInventory(profile, itemId) {
+  if (!profile.inventory) {
+    return false;
+  }
+  const index = profile.inventory.indexOf(itemId);
+  if (index === -1) {
+    return false;
+  }
+  profile.inventory.splice(index, 1);
+  return true;
 }
 
-function createEnemyForStage(stageIndex, routeId) {
-  const template = stageTemplates[Math.min(stageIndex, stageTemplates.length - 1)];
-  const multiplier = 1 + stageIndex * 0.2;
-  return {
-    id: `${routeId}-${stageIndex}`,
-    name: `${template.name} of the ${routeId}`,
-    maxHp: Math.round(template.hp * multiplier),
-    currentHp: Math.round(template.hp * multiplier),
-    attack: Math.round(template.attack * multiplier),
-    speed: template.speed,
-    routeId,
-  };
+function applyProfilePerks(profile) {
+  profile.unlockedPerks = Array.isArray(profile.unlockedPerks) ? profile.unlockedPerks : [];
+  if (profile.unlockedPerks.includes('extra_ability_slot')) {
+    profile.abilitySlots = Math.max(5, profile.abilitySlots || 4);
+  } else {
+    profile.abilitySlots = profile.abilitySlots || 4;
+  }
+  if (profile.unlockedPerks.includes('starting_potion')) {
+    addItemToInventory(profile, 'health_potion', 1);
+  }
 }
 
-function getRouteResult(room) {
-  const voteCounts = {};
+function claimRunLoot(room) {
+  if (!room.runLoot || room.runLoot.length === 0) {
+    return;
+  }
+  const lootToKeep = room.runLoot.slice(0, 3);
   room.users.forEach(user => {
-    if (room.votes[user.name]) {
-      voteCounts[room.votes[user.name]] = (voteCounts[room.votes[user.name]] || 0) + 1;
-    }
+    if (!user.alive) return;
+    lootToKeep.forEach(itemId => {
+      addItemToInventory(user.profile, itemId, 1);
+    });
   });
-
-  const sortedRoutes = Object.entries(voteCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(entry => entry[0]);
-
-  if (sortedRoutes.length === 0) {
-    return routeOptions[0].id;
-  }
-
-  if (sortedRoutes.length === 1 || voteCounts[sortedRoutes[0]] > voteCounts[sortedRoutes[1]]) {
-    return sortedRoutes[0];
-  }
-
-  const hostVote = room.votes[room.hostName];
-  if (hostVote && sortedRoutes.includes(hostVote)) {
-    return hostVote;
-  }
-
-  return sortedRoutes[0];
-}
-
-function startStage(room, routeId) {
-  room.currentRoute = routeId;
-  room.gameState = 'combat';
-  room.currentStage += 1;
-  room.currentEnemy = createEnemyForStage(room.currentStage, routeId);
-  room.votes = {};
-  room.routeOptions = routeOptions;
-  room.battleLog.push(`The party moves into the ${routeId}.`);
-  room.nextEnemyAction = Date.now() + 5000;
-  room.users.forEach(user => {
-    user.cooldowns = user.cooldowns || {};
-  });
-  broadcastRoomState(room);
+  room.battleLog.push(`Players claimed ${lootToKeep.length} items from the successful run.`);
+  room.runLoot = [];
 }
 
 function rollPlayerAction(room, user, actionType, socket) {
@@ -395,17 +316,41 @@ function rollPlayerAction(room, user, actionType, socket) {
 
   if (enemy.currentHp <= 0) {
     room.battleLog.push(`${enemy.name} has been defeated!`);
-    const reward = Math.round(50 + room.currentStage * 20);
+    const reward = getEnemyReward(room.currentStage, room.currentPath);
     room.users.forEach(ally => {
       if (ally.alive) {
         ally.profile.currency += reward;
       }
     });
-    room.gameState = 'voting';
-    room.currentEnemy = null;
-    room.votes = {};
-    room.routeOptions = routeOptions;
-    room.battleLog.push(`The party earns ${reward} coins and chooses the next path.`);
+
+    if (Math.random() < 0.35) {
+      const itemIds = Object.keys(itemDefinitions);
+      const droppedId = itemIds[Math.floor(Math.random() * itemIds.length)];
+      room.runLoot = room.runLoot || [];
+      room.runLoot.push(droppedId);
+      room.battleLog.push(`Found item: ${itemDefinitions[droppedId].label}.`);
+    }
+
+    if (room.currentStage >= 10) {
+      room.gameState = 'victory';
+      room.currentEnemy = null;
+      room.routeOptions = [];
+      claimRunLoot(room);
+      room.battleLog.push('The party has finished the run successfully! Keep all currency and up to three items.');
+    } else {
+      const nextOptions = getNextRouteOptions(room);
+      room.currentEnemy = null;
+      room.votes = {};
+      if (nextOptions.length > 0) {
+        room.gameState = 'voting';
+        room.routeOptions = nextOptions;
+        room.battleLog.push(`The party earns ${reward} coins and chooses the next path.`);
+      } else {
+        room.gameState = 'rest';
+        room.routeOptions = [];
+        room.battleLog.push(`The party earns ${reward} coins and takes a moment to rest before the next stage.`);
+      }
+    }
   }
 
   socket.emit('action-success', {
@@ -416,7 +361,16 @@ function rollPlayerAction(room, user, actionType, socket) {
   });
 
   updateSavedProfiles(room);
-  broadcastRoomState(room);
+  broadcastRoomState(io, room);
+}
+
+function applyRunFailure(room) {
+  const startCurrency = room.runStartCurrency || {};
+  room.users.forEach(user => {
+    const initial = Number.isFinite(startCurrency[user.name]) ? startCurrency[user.name] : 0;
+    const earned = Math.max(0, user.profile.currency - initial);
+    user.profile.currency = initial + Math.round(earned * 0.5);
+  });
 }
 
 function updateSavedProfiles(room) {
@@ -431,6 +385,8 @@ function updateSavedProfiles(room) {
     profile.stats = user.profile.stats;
     profile.maxHp = user.profile.maxHp;
     profile.currentHp = user.profile.currentHp;
+    profile.abilitySlots = user.profile.abilitySlots;
+    profile.unlockedPerks = user.profile.unlockedPerks;
     profile.updatedAt = new Date().toISOString();
   });
   savePlayersToDisk();
@@ -452,8 +408,17 @@ function processEnemyAttack(room) {
     room.battleLog.push(`${target.name} has fallen.`);
   }
 
+  const remainingPlayers = room.users.filter(user => user.alive);
+  if (remainingPlayers.length === 0) {
+    room.gameState = 'run_failed';
+    room.currentEnemy = null;
+    room.routeOptions = [];
+    room.battleLog.push('The party has been wiped out. The run ends and half of the earned currency is retained.');
+    applyRunFailure(room);
+  }
+
   updateSavedProfiles(room);
-  broadcastRoomState(room);
+  broadcastRoomState(io, room);
 }
 
 setInterval(() => {
@@ -494,32 +459,20 @@ app.post('/create-room', (req, res) => {
     gameState: 'lobby',
     currentStage: 0,
     currentRoute: null,
+    currentPath: 'normal',
     currentEnemy: null,
     routeOptions: routeOptions,
     votes: {},
     battleLog: ['Party assembled in the lobby.'],
     users: [],
+    runStartCurrency: {},
+    runLoot: [],
+    shopOffers: shopOffers,
   };
 
   rooms.set(id, room);
   res.cookie('partyRoomUser', name, { maxAge: 60000, path: '/' });
   res.redirect(`/room/${id}`);
-});
-
-app.post('/join-room', (req, res) => {
-  const roomId = req.body.roomId?.trim().toUpperCase();
-  const name = req.body.name?.trim();
-
-  if (!roomId || !name) {
-    return res.status(400).send('Name and room code are required to join.');
-  }
-
-  const room = rooms.get(roomId);
-  if (!room) {
-    return res.status(404).send('Party room not found.');
-  }
-
-  res.redirect(`/room/${roomId}?name=${encodeURIComponent(name)}`);
 });
 
 app.get('/room/:roomId', (req, res) => {
@@ -577,7 +530,7 @@ io.on('connection', socket => {
       user.role = 'Host';
     }
 
-    broadcastRoomState(room);
+    broadcastRoomState(io, room);
   });
 
   socket.on('select-class', ({ roomId, className }) => {
@@ -593,7 +546,7 @@ io.on('connection', socket => {
 
     user.selectedClass = className;
     user.profile = initializeProfile(user.name, className);
-    broadcastRoomState(room);
+    broadcastRoomState(io, room);
   });
 
   socket.on('start-game', ({ roomId }) => {
@@ -614,15 +567,23 @@ io.on('connection', socket => {
       }
       user.cooldowns = {};
       user.alive = true;
+      applyProfilePerks(user.profile);
     });
 
     room.gameState = 'voting';
     room.currentStage = 0;
+    room.currentRoute = null;
+    room.currentPath = 'normal';
     room.currentEnemy = null;
     room.votes = {};
     room.routeOptions = routeOptions;
+    room.runStartCurrency = room.users.reduce((map, user) => {
+      map[user.name] = user.profile.currency || 0;
+      return map;
+    }, {});
+    room.runLoot = [];
     room.battleLog.push('The adventure begins. Pick a route.');
-    broadcastRoomState(room);
+    broadcastRoomState(io, room);
   });
 
   socket.on('vote-route', ({ roomId, routeId }) => {
@@ -632,20 +593,158 @@ io.on('connection', socket => {
     }
 
     const user = room.users.find(u => u.socketId === socket.id);
-    if (!user || !routeOptions.some(route => route.id === routeId)) {
+    if (!user || !isRouteOptionValid(room, routeId)) {
       return;
     }
 
     room.votes[user.name] = routeId;
-    broadcastRoomState(room);
+    broadcastRoomState(io, room);
 
     const livePlayers = room.users.filter(u => u.alive).length;
     const voteCount = Object.keys(room.votes).length;
     if (voteCount >= livePlayers) {
       const chosenRoute = getRouteResult(room);
       room.battleLog.push(`Route chosen: ${chosenRoute}.`);
-      startStage(room, chosenRoute);
+      startStage(io, room, chosenRoute);
     }
+  });
+
+  socket.on('continue-run', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.gameState !== 'rest') {
+      return;
+    }
+
+    if (room.routeOptions && room.routeOptions.length > 0) {
+      return;
+    }
+
+    if (room.currentStage >= 10) {
+      room.gameState = 'victory';
+      room.battleLog.push('The party has finished the run successfully.');
+      broadcastRoomState(io, room);
+      return;
+    }
+
+    startStage(io, room);
+  });
+
+  socket.on('open-shop', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || !['lobby', 'victory', 'run_failed'].includes(room.gameState)) {
+      return;
+    }
+    room.gameState = 'shop';
+    room.shopOffers = shopOffers;
+    room.battleLog.push('The shop is now open for the party.');
+    broadcastRoomState(io, room);
+  });
+
+  socket.on('close-shop', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.gameState !== 'shop') {
+      return;
+    }
+    room.gameState = 'lobby';
+    room.battleLog.push('The shop has closed.');
+    broadcastRoomState(io, room);
+  });
+
+  socket.on('buy-shop-item', ({ roomId, offerId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.gameState !== 'shop') {
+      socket.emit('shop-error', { message: 'Shop is not currently open.' });
+      return;
+    }
+
+    const user = room.users.find(u => u.socketId === socket.id);
+    if (!user) {
+      socket.emit('shop-error', { message: 'Player not found.' });
+      return;
+    }
+
+    const offer = getShopOffer(offerId);
+    if (!offer) {
+      socket.emit('shop-error', { message: 'Offer not found.' });
+      return;
+    }
+
+    if (user.profile.currency < offer.cost) {
+      socket.emit('shop-error', { message: 'Not enough currency to buy that item.' });
+      return;
+    }
+
+    if (offer.type === 'item') {
+      const success = addItemToInventory(user.profile, offer.itemId, offer.quantity);
+      if (!success) {
+        socket.emit('shop-error', { message: 'Inventory is full.' });
+        return;
+      }
+    }
+
+    if (offer.type === 'perk') {
+      user.profile.unlockedPerks = user.profile.unlockedPerks || [];
+      if (user.profile.unlockedPerks.includes(offer.perkId)) {
+        socket.emit('shop-error', { message: 'You already own this perk.' });
+        return;
+      }
+      user.profile.unlockedPerks.push(offer.perkId);
+    }
+
+    user.profile.currency -= offer.cost;
+    if (offer.type === 'perk') {
+      applyProfilePerks(user.profile);
+    }
+    room.battleLog.push(`${user.name} purchased ${offer.label} from the shop.`);
+    socket.emit('shop-success', { message: `Purchased ${offer.label}.` });
+    updateSavedProfiles(room);
+    broadcastRoomState(io, room);
+  });
+
+  socket.on('use-item', ({ roomId, itemId }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.gameState !== 'combat') {
+      socket.emit('action-error', { message: 'You can only use items during combat.' });
+      return;
+    }
+    const user = room.users.find(u => u.socketId === socket.id);
+    if (!user || !user.alive) {
+      socket.emit('action-error', { message: 'Player not found or not able to act.' });
+      return;
+    }
+    const item = itemDefinitions[itemId];
+    if (!item) {
+      socket.emit('action-error', { message: 'Item not found.' });
+      return;
+    }
+    if (!removeItemFromInventory(user.profile, itemId)) {
+      socket.emit('action-error', { message: 'Item not available in inventory.' });
+      return;
+    }
+    user.cooldowns = user.cooldowns || {};
+    const effect = item.effect || {};
+    const now = Date.now();
+
+    if (effect.type === 'heal') {
+      user.profile.currentHp = Math.min(user.profile.currentHp + effect.amount, user.profile.maxHp);
+      room.battleLog.push(`${user.name} used a ${item.label} and recovered ${effect.amount} HP.`);
+    } else if (effect.type === 'cooldown_reduction') {
+      Object.keys(user.cooldowns).forEach(action => {
+        if (user.cooldowns[action] > now) {
+          user.cooldowns[action] = now + Math.max(0, Math.round((user.cooldowns[action] - now) * (1 - effect.amount)));
+        }
+      });
+      room.battleLog.push(`${user.name} used a ${item.label} and reduced cooldowns.`);
+    } else if (effect.type === 'enemy_attack_down' && room.currentEnemy) {
+      room.currentEnemy.attack = Math.max(1, Math.round(room.currentEnemy.attack * (1 - effect.amount)));
+      room.battleLog.push(`${user.name} used a ${item.label} to weaken ${room.currentEnemy.name}.`);
+    } else {
+      room.battleLog.push(`${user.name} used ${item.label}.`);
+    }
+
+    updateSavedProfiles(room);
+    broadcastRoomState(io, room);
+    socket.emit('action-success', { message: 'Item used successfully.' });
   });
 
   socket.on('player-action', ({ roomId, actionType }) => {
@@ -719,7 +818,7 @@ io.on('connection', socket => {
     }
 
     updateSavedProfiles(room);
-    broadcastRoomState(room);
+    broadcastRoomState(io, room);
   });
 });
 
